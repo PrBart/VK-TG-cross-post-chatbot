@@ -1,9 +1,8 @@
-require("@babel/register")({
-    presets: ["@babel/preset-env"],
+require('@babel/register')({
+    presets: ['@babel/preset-env'],
     plugins: [
-      ["@babel/transform-runtime"]
-  ]
-  });
+        ['@babel/transform-runtime']
+    ]
+});
 
-module.exports = require('./bot.js')
-  
+module.exports = require('./bot.js');  

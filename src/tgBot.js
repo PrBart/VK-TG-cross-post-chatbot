@@ -1,21 +1,30 @@
-import request from 'request-promise'
-import gm from 'gm'
+import request from 'request-promise';
+import gm from 'gm';
 
 const im = gm.subClass({ imageMagick: true });
 
-import socksAgent from '../proxyConf'
+import socksAgent from '../proxyConf';
 
 const getFile = async url => {
     return await request({url, encoding: null, agent: socksAgent}, (err, resp, buffer) => {
         return buffer;
-   });
-}
+    });
+};
 
 const tgActions = (tg,vk) => {
 
+    const handleError = async (context, err) => {
+        const message = `${context.from.first_name} ${context.from.last_name}\nпоймал ошибку\n${err.description}.`;
+        vk.api.messages.send(
+            {
+                peer_id: process.env.VK_CHAT_ID, 
+                message: message
+            });
+    };
+
     tg.command('info', (context) => {
         if(context.chat.id.toString() === process.env.TG_CHAT_ID){
-            context.reply(`Это бот для коммуникации между конфой в тг и вк.`); 
+            context.reply('Это бот для коммуникации между конфой в тг и вк.'); 
         }
     });
 
@@ -29,14 +38,14 @@ const tgActions = (tg,vk) => {
                             peer_id: process.env.VK_CHAT_ID, 
                             message: message
                         });
-                    break 
+                    break; 
                 }
                 case 'sticker' : {
-                    const fileId = context.message.sticker.file_id
+                    const fileId = context.message.sticker.file_id;
                     const link = await tg.telegram.getFileLink(fileId);
                     const imagewebp = await getFile(link);
                     im(imagewebp, 'sticker.WEBP').toBuffer('image.PNG',async (err, buffer) => {
-                        if (err) console.error(err);
+                        if (err) console.error(`ERROR: ${err}`);
                         const message = `${context.from.first_name} ${context.from.last_name}\nприслал стикер:`;
                         const attachment = await vk.upload.messagePhoto(
                             {
@@ -50,7 +59,7 @@ const tgActions = (tg,vk) => {
                                 attachment: attachment
                             });
                     });
-                    break 
+                    break; 
                 }
                 case 'audio' : {
                     const fileId = context.message.audio.file_id;
@@ -68,7 +77,7 @@ const tgActions = (tg,vk) => {
                             message: message,
                             attachment: attachment
                         });
-                    break 
+                    break; 
                 }
                 case 'voice' : {
                     const fileId = context.update.message.voice.file_id;
@@ -86,10 +95,11 @@ const tgActions = (tg,vk) => {
                             message: message,
                             attachment: attachment
                         });
-                    break 
+                    break; 
                 }
                 case 'photo' : {
-                    const fileId = context.update.message.photo[2].file_id;
+                    const length = context.update.message.photo.length;
+                    const fileId = context.update.message.photo[length - 1].file_id;
                     const link = await tg.telegram.getFileLink(fileId);
                     const photo = await getFile(link);
                     const message = `${context.from.first_name} ${context.from.last_name}\nприслал:`;
@@ -104,44 +114,56 @@ const tgActions = (tg,vk) => {
                             message: message,
                             attachment: attachment
                         });
-                    break 
+                    break; 
                 }
                 case 'document' : {
-                    const fileId = context.update.message.document.file_id;
-                    const link = await tg.telegram.getFileLink(fileId);
-                    const document = await getFile(link);
-                    const message = `${context.from.first_name} ${context.from.last_name}\nприслал:`;
-                    const attachment = await vk.upload.messageDocument(
-                        {
-                            peer_id: process.env.VK_CHAT_ID, 
-                            source: document
-                        });
-                    vk.api.messages.send(
-                        {
-                            peer_id: process.env.VK_CHAT_ID, 
-                            message: message,
-                            attachment: attachment
-                        });
-                    break 
+                    try {
+                        const fileId = context.update.message.document.file_id;
+                        const link = await tg.telegram.getFileLink(fileId);
+                        const document = await getFile(link);
+                        const message = `${context.from.first_name} ${context.from.last_name}\nприслал:`;
+                        const attachment = await vk.upload.messageDocument(
+                            {
+                                peer_id: process.env.VK_CHAT_ID, 
+                                source: document
+                            });
+                        vk.api.messages.send(
+                            {
+                                peer_id: process.env.VK_CHAT_ID, 
+                                message: message,
+                                attachment: attachment
+                            });
+                        break; 
+                    } catch (err) {
+                        handleError(context, err);
+                        break;             
+                    }
                 }
                 case 'video' : {
-                    const message = `${context.from.first_name} ${context.from.last_name}\nприслал видео, но оно не поддерживается.`;
-                    vk.api.messages.send(
-                        {
-                            peer_id: process.env.VK_CHAT_ID, 
-                            message: message
-                        });
-                    break 
+                    try {
+                        const fileId = context.update.message.video.file_id;
+                        const link = await tg.telegram.getFileLink(fileId);
+                        const message = `${context.from.first_name} ${context.from.last_name}\nприслал видео\nлинк:${link}.`;
+                        vk.api.messages.send(
+                            {
+                                peer_id: process.env.VK_CHAT_ID, 
+                                message: message
+                            });
+                        break; 
+                    } catch (err) {
+                        handleError(context, err);
+                        break;             
+                    }
                 }
                 default : {
                     console.log(`Необрабатываемый тип ${context.updateSubTypes[0]}`);
-                    const message = `${vkUser[0].first_name} ${vkUser[0].last_name}\nПрислал необрабатываемый тип ${context.updateSubTypes[0]}`;
+                    const message = `${context.from.first_name} ${context.from.last_name}\nПрислал необрабатываемый тип ${context.updateSubTypes[0]}`;
                     vk.api.messages.send(
                         {
                             peer_id: process.env.VK_CHAT_ID, 
                             message: message
                         });
-                    break
+                    break;
                 }
             }
         }
@@ -169,6 +191,6 @@ const tgActions = (tg,vk) => {
         }
     });
     */
-}
+};
 
 export {tgActions};
