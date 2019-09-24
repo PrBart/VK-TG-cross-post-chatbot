@@ -1,4 +1,4 @@
-import SocksAgent from 'socks5-https-client/lib/Agent'
+import SocksAgent from 'socks5-https-client/lib/Agent';
 
 const socksAgent = new SocksAgent({
     socksHost: '',
@@ -7,4 +7,4 @@ const socksAgent = new SocksAgent({
     socksPassword: '',
 });
 
-export default socksAgent
+export default socksAgent;
