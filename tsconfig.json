@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+    "noImplicitAny": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "target": "es5",
+    "outDir": "dist"
+  },
+  "include": ["./src/**/*"],
+  "files": ["./src/typings/telegraf-context.d.ts", "./src/typings/agent.d.ts"],
+  "exclude": ["node_modules/**/*"]
+}
