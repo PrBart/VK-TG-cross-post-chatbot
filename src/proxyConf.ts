@@ -1,10 +1,13 @@
 import SocksAgent from 'socks5-https-client/lib/Agent';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const socksAgent = new SocksAgent({
-  socksHost: '139.59.157.170',
-  socksPort: 1080,
-  socksUsername: 'sobaken',
-  socksPassword: decodeURIComponent('H%5D%25eEJWcV%29u%7BKbyV'),
+  socksHost: process.env.PROXY_SOCKS_HOST,
+  socksPort: parseInt(process.env.PROXY_SOCKS_PORT, 10),
+  socksUsername: process.env.PROXY_SOCKS_USERNAME,
+  socksPassword: decodeURIComponent(process.env.PROXY_SOCKS_PASSWORD),
 });
 
 export default socksAgent;

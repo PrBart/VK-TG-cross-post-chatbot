@@ -1,19 +1,20 @@
-require('dotenv').config();
-import VkBot from 'vk-io';
+import { VK } from 'vk-io';
 import Telegraf, { TContext } from 'telegraf';
 
 import socksAgent from './proxyConf';
 
-import { vkActions } from './vkBot';
-import { tgActions } from './tgBot';
+import vkActions from './vkBot';
+import tgActions from './tgBot';
 
-const vk = new VkBot({
+const vk = new VK({
   token: process.env.VK_BOT_TOKEN,
-  pollingGroupId: parseInt(process.env.VK_GROUPBOT_ID),
+  pollingGroupId: parseInt(process.env.VK_GROUPBOT_ID, 10),
 });
 
 const tg = new Telegraf(process.env.TG_BOT_TOKEN, {
-  telegram: { agent: socksAgent },
+  telegram: {
+    agent: parseInt(process.env.ENABLE_PROXY, 10) ? socksAgent : null,
+  },
 }) as Telegraf<TContext>;
 
 vkActions(vk, tg);

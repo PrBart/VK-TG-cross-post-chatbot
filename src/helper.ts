@@ -1,9 +1,9 @@
-const toEscapeMsg = function (str: string) {
-  str = str
+const toEscapeMsg = (str: string): string => {
+  const escapedStr = str
     .replace(/_/g, '\\_')
     .replace(/\*/g, '\\*')
     .replace(/\[/g, '\\[')
     .replace(/`/g, '\\`');
-  return str;
+  return escapedStr;
 };
 export default toEscapeMsg;

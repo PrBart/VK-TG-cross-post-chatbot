@@ -1,34 +1,33 @@
-import toEscapeMsg from './helper.js';
-import Telegraf, { Extra, TContext } from 'telegraf';
-import VK, {
+import Telegraf, { TContext } from 'telegraf';
+import {
+  VK,
   MessageContext,
   PhotoAttachment,
   AudioAttachment,
   AudioMessageAttachment,
   StickerAttachment,
   LinkAttachment,
+  DocumentAttachment,
+  Attachment,
 } from 'vk-io';
+import { HearManager } from '@vk-io/hear';
 import { ExtraReplyMessage } from 'telegraf/typings/telegram-types';
+import toEscapeMsg from './helper.js';
 
-type MergedAttachments = PhotoAttachment &
-  AudioAttachment &
-  AudioMessageAttachment &
-  StickerAttachment &
-  LinkAttachment;
-
+const hearManager = new HearManager<MessageContext>();
 const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
   const parseMode: ExtraReplyMessage = { parse_mode: 'Markdown' };
 
   const handleError = async (
     context: MessageContext,
     fullName: string,
-    err: any,
+    err: Error,
   ) => {
     const message = `*${fullName}* \n*поймал ошибку*\n${err.message}.`;
     tg.telegram.sendMessage(process.env.TG_CHAT_ID, message, parseMode);
   };
 
-  vk.updates.hear('/info', async context => {
+  hearManager.hear('/info', async context => {
     if (
       context.peerId.toString() === process.env.VK_CHAT_ID &&
       context.isUser
@@ -38,10 +37,12 @@ const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
       );
       await context.send(
         `Это бот для коммуникации между конфой в тг и вк.
-				Линк на конфу ТГ: ${inviteLink}`,
+        Линк на конфу ТГ: ${inviteLink}`,
       );
     }
   });
+
+  vk.updates.on('message_new', hearManager.middleware);
 
   vk.updates.on('message', async (context, next) => {
     if (
@@ -54,7 +55,7 @@ const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
       const fullName = `${vkUser[0].first_name ? vkUser[0].first_name : ''} ${
         vkUser[0].last_name ? vkUser[0].last_name : ''
       }`;
-      if (context.text !== null) {
+      if (context.text) {
         try {
           const content = toEscapeMsg(context.text);
           const message = `*${fullName}*\n${content}`;
@@ -64,7 +65,7 @@ const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
         }
       }
       if (context.hasAttachments() === true) {
-        context.attachments.map(async (att: MergedAttachments) => {
+        context.attachments.map(async (att: Attachment) => {
           switch (att.type) {
             case 'wall': {
               try {
@@ -82,7 +83,10 @@ const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
             }
             case 'photo': {
               try {
-                const message = `*${fullName}*\n${toEscapeMsg(att.largePhoto)}`;
+                const photoAttachment = att.toJSON() as PhotoAttachment;
+                const message = `*${fullName}*\n${toEscapeMsg(
+                  photoAttachment.largeSizeUrl,
+                )}`;
                 tg.telegram.sendMessage(
                   process.env.TG_CHAT_ID,
                   message,
@@ -95,9 +99,11 @@ const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
             }
             case 'audio': {
               try {
-                const track =
-                  toEscapeMsg(att.artist) + ' - ' + toEscapeMsg(att.title);
-                const message = `*${fullName}*\n*прислал трек:\n*${track}\n(мб потом прикручу прогрузку треков в вк)`;
+                const audioAttachment = att.toJSON() as AudioAttachment;
+                const audioName = `${toEscapeMsg(
+                  audioAttachment.artist,
+                )} - ${toEscapeMsg(audioAttachment.title)}`;
+                const message = `*${fullName}*\n*прислал трек:\n*${audioName}\n(мб потом прикручу прогрузку треков в вк)`;
                 tg.telegram.sendMessage(
                   process.env.TG_CHAT_ID,
                   message,
@@ -110,13 +116,18 @@ const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
             }
             case 'audio_message': {
               try {
+                const audioMessageAttachment =
+                  att.toJSON() as AudioMessageAttachment;
                 const message = `*${fullName}*\n*прислал войс:*`;
                 tg.telegram.sendMessage(
                   process.env.TG_CHAT_ID,
                   message,
                   parseMode,
                 );
-                tg.telegram.sendVoice(process.env.TG_CHAT_ID, att.oggUrl);
+                tg.telegram.sendVoice(
+                  process.env.TG_CHAT_ID,
+                  audioMessageAttachment.oggUrl,
+                );
               } catch (err) {
                 handleError(context, fullName, err);
               }
@@ -124,8 +135,9 @@ const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
             }
             case 'doc': {
               try {
-                const title = toEscapeMsg(att.title);
-                const url = toEscapeMsg(att.url);
+                const documentAttachment = att.toJSON() as DocumentAttachment;
+                const title = toEscapeMsg(documentAttachment.title);
+                const url = toEscapeMsg(documentAttachment.url);
                 const message = `*${fullName}*\n*прислал Док:*${title}\n*линк:*${url}`;
                 tg.telegram.sendMessage(
                   process.env.TG_CHAT_ID,
@@ -153,12 +165,10 @@ const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
             }
             case 'sticker': {
               try {
-                const length = (context.attachments as StickerAttachment[])[0]
-                  .images.length;
+                const stickerAttachment = att.toJSON() as StickerAttachment;
                 const url = toEscapeMsg(
-                  (context.attachments as StickerAttachment[])[0].images[
-                    length - 1
-                  ].url,
+                  stickerAttachment.images[stickerAttachment.images.length - 1]
+                    .url,
                 );
                 const message = `*${fullName}*\n${url}`;
                 tg.telegram.sendMessage(
@@ -173,9 +183,8 @@ const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
             }
             case 'link': {
               try {
-                const url = toEscapeMsg(
-                  (context.attachments as LinkAttachment[])[0].url,
-                );
+                const linkAttachment = att.toJSON() as LinkAttachment;
+                const url = toEscapeMsg(linkAttachment.url);
                 const message = `*${fullName}*\n${url}`;
                 tg.telegram.sendMessage(
                   process.env.TG_CHAT_ID,
@@ -189,9 +198,7 @@ const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
             }
             default: {
               try {
-                console.log(att.type);
-                const message = `*${fullName}*\n*прислал какую-то хуйню формата:* ${att.type}`;
-                console.log(context);
+                const message = `*${fullName}*\n*прислал необрабатываемый формата:* ${att.type}`;
                 tg.telegram.sendMessage(
                   process.env.TG_CHAT_ID,
                   message,
@@ -210,4 +217,4 @@ const vkActions = (vk: VK, tg: Telegraf<TContext>): void => {
   });
 };
 
-export { vkActions };
+export default vkActions;

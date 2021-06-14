@@ -1,3 +1,4 @@
+/* eslint-disable import/no-extraneous-dependencies */
 import * as TT from 'telegram-typings';
 import { IncomingMessage } from 'telegraf/typings/telegram-types';
 import { TelegrafContext } from 'telegraf/typings/context';

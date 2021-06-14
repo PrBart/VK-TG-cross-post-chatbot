@@ -1,30 +1,39 @@
+import dotenv from 'dotenv';
+
 import request from 'request-promise';
 import gm from 'gm';
 import ffmpeg from 'fluent-ffmpeg';
-import socksAgent from './proxyConf';
-import VK from 'vk-io';
+import { VK } from 'vk-io';
 import Telegraf, { TContext } from 'telegraf';
-import { Writable } from 'stream';
+import socksAgent from './proxyConf';
 
-const vkChatId = parseInt(process.env.VK_CHAT_ID);
+dotenv.config();
+
+const vkChatId = parseInt(process.env.VK_CHAT_ID, 10);
 
 const im = gm.subClass({ imageMagick: true });
 
-const getFile = async (url: string): Promise<Buffer> => {
-  return request(
-    { url, encoding: null, agent: socksAgent },
-    (err, resp, buffer) => {
-      return buffer;
+const getFile = async (url: string): Promise<Buffer> =>
+  request(
+    {
+      url,
+      encoding: null,
+      agent: parseInt(process.env.ENABLE_PROXY, 10) ? socksAgent : null,
     },
+    (err, resp, buffer) => buffer,
   );
-};
 
-const tgActions = (tg: Telegraf<TContext>, vk: VK) => {
-  const handleError = async (context: TContext, fullName: string, err: any) => {
+const tgActions = (tg: Telegraf<TContext>, vk: VK): void => {
+  const handleError = async (
+    context: TContext,
+    fullName: string,
+    err: Error,
+  ) => {
     const message = `${fullName}\nпоймал ошибку\n${err.message}.`;
     vk.api.messages.send({
       peer_id: vkChatId,
-      message: message,
+      random_id: context.message.message_id,
+      message,
     });
   };
 
@@ -45,7 +54,8 @@ const tgActions = (tg: Telegraf<TContext>, vk: VK) => {
             const message = `${fullName}\n${context.message.text}`;
             vk.api.messages.send({
               peer_id: vkChatId,
-              message: message,
+              random_id: context.message.message_id,
+              message,
             });
           } catch (err) {
             handleError(context, fullName, err);
@@ -58,31 +68,32 @@ const tgActions = (tg: Telegraf<TContext>, vk: VK) => {
             const link = await tg.telegram.getFileLink(fileId);
             const imagewebp = await getFile(link);
             switch (context.message.sticker.is_animated) {
-              case true: {
-                const message = `${fullName}\nприслал анимированный стикер:\n анимированные стикеры, пока не поддерживаются`;
-                vk.api.messages.send({
-                  peer_id: vkChatId,
-                  message: message,
-                });
-                break;
-              }
               case false: {
                 im(imagewebp, 'sticker.WEBP').toBuffer(
                   'image.PNG',
-                  async (err, buffer) => {
-                    if (err) console.error(`ERROR: ${err}`);
+                  async (_err, buffer) => {
                     const message = `${fullName}\nприслал стикер:`;
                     const attachment = await vk.upload.messagePhoto({
                       peer_id: vkChatId,
-                      source: buffer,
+                      source: { value: buffer },
                     });
                     vk.api.messages.send({
                       peer_id: vkChatId,
-                      message: message,
+                      random_id: context.message.message_id,
+                      message,
                       attachment: attachment.toString(),
                     });
                   },
                 );
+                break;
+              }
+              default: {
+                const message = `${fullName}\nприслал анимированный стикер:\n анимированные стикеры, пока не поддерживаются`;
+                vk.api.messages.send({
+                  peer_id: vkChatId,
+                  random_id: context.message.message_id,
+                  message,
+                });
                 break;
               }
             }
@@ -99,11 +110,12 @@ const tgActions = (tg: Telegraf<TContext>, vk: VK) => {
             const message = `${fullName}\nприслал аудио:`;
             const attachment = await vk.upload.audioMessage({
               peer_id: vkChatId,
-              source: audio,
+              source: { value: audio },
             });
             vk.api.messages.send({
               peer_id: vkChatId,
-              message: message,
+              random_id: context.message.message_id,
+              message,
               attachment: attachment.toString(),
             });
           } catch (err) {
@@ -119,11 +131,12 @@ const tgActions = (tg: Telegraf<TContext>, vk: VK) => {
             const message = `${fullName}\nприслал войс:`;
             const attachment = await vk.upload.audioMessage({
               peer_id: vkChatId,
-              source: voice,
+              source: { value: voice },
             });
             vk.api.messages.send({
               peer_id: vkChatId,
-              message: message,
+              random_id: context.message.message_id,
+              message,
               attachment: attachment.toString(),
             });
           } catch (err) {
@@ -133,19 +146,20 @@ const tgActions = (tg: Telegraf<TContext>, vk: VK) => {
         }
         case 'photo': {
           try {
-            const length = context.update.message.photo.length;
+            const { length } = context.update.message.photo;
             const fileId = context.update.message.photo[length - 1].file_id;
             const link = await tg.telegram.getFileLink(fileId);
             const photo = await getFile(link);
-            const caption = context.update.message.caption;
-            const message = `${fullName}\nприслал:\n ${caption ? caption : ''}`;
+            const { caption } = context.update.message;
+            const message = `${fullName}\nприслал:\n ${caption || ''}`;
             const attachment = await vk.upload.messagePhoto({
               peer_id: vkChatId,
-              source: photo,
+              source: { value: photo },
             });
             vk.api.messages.send({
               peer_id: vkChatId,
-              message: message,
+              random_id: context.message.message_id,
+              message,
               attachment: attachment.toString(),
             });
           } catch (err) {
@@ -161,11 +175,12 @@ const tgActions = (tg: Telegraf<TContext>, vk: VK) => {
             const message = `${fullName}\nприслал:`;
             const attachment = await vk.upload.messageDocument({
               peer_id: vkChatId,
-              source: document,
+              source: { value: document },
             });
             vk.api.messages.send({
               peer_id: vkChatId,
-              message: message,
+              random_id: context.message.message_id,
+              message,
               attachment: attachment.toString(),
             });
           } catch (err) {
@@ -180,7 +195,8 @@ const tgActions = (tg: Telegraf<TContext>, vk: VK) => {
             const message = `${fullName}\nприслал видео\nлинк:${link}.`;
             vk.api.messages.send({
               peer_id: vkChatId,
-              message: message,
+              random_id: context.message.message_id,
+              message,
             });
           } catch (err) {
             handleError(context, fullName, err);
@@ -191,22 +207,23 @@ const tgActions = (tg: Telegraf<TContext>, vk: VK) => {
           try {
             const fileId = context.update.message.animation.file_id;
             const link = await tg.telegram.getFileLink(fileId);
-            let buf = Buffer.alloc(0);
+            let buffer = Buffer.alloc(0);
             await ffmpeg(link)
               .outputOption('-vf', 'scale=320:-1:flags=lanczos,fps=15')
               .format('gif')
-              .on('data', function (chunk: any) {
-                buf = Buffer.concat([buf, chunk]);
+              .on('data', (chunk: Buffer) => {
+                buffer = Buffer.concat([buffer, chunk]);
               })
               .on('end', async () => {
                 const message = `${fullName}\nПрислал гифку`;
                 const attachment = await vk.upload.messageDocument({
                   peer_id: vkChatId,
-                  source: buf,
+                  source: { value: buffer },
                 });
                 vk.api.messages.send({
                   peer_id: vkChatId,
-                  message: message,
+                  random_id: context.message.message_id,
+                  message,
                   attachment: attachment.toString(),
                 });
               });
@@ -216,12 +233,14 @@ const tgActions = (tg: Telegraf<TContext>, vk: VK) => {
           break;
         }
         default: {
+          // eslint-disable-next-line no-console
           console.log(`Необрабатываемый тип ${context.updateSubTypes[0]}`);
           try {
             const message = `${fullName}\nПрислал необрабатываемый тип ${context.updateSubTypes[0]}`;
             vk.api.messages.send({
               peer_id: vkChatId,
-              message: message,
+              random_id: context.message.message_id,
+              message,
             });
           } catch (err) {
             handleError(context, fullName, err);
@@ -233,4 +252,4 @@ const tgActions = (tg: Telegraf<TContext>, vk: VK) => {
   });
 };
 
-export { tgActions };
+export default tgActions;

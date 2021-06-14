@@ -1,0 +1,18 @@
+version: "3.6"
+services:
+  willdonut:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    environment:
+      VK_BOT_TOKEN: ""
+      VK_CHAT_ID: ""
+      VK_GROUPBOT_ID: ""
+      TG_BOT_TOKEN: ""
+      TG_CHAT_ID: ""
+      ENABLE_PROXY: 0
+      PROXY_SOCKS_HOST: ""
+      PROXY_SOCKS_PORT: ""
+      PROXY_SOCKS_USERNAME: ""
+      PROXY_SOCKS_PASSWORD: ""
